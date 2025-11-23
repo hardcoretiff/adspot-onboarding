@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { BrandProfile } from '../../types';
 import { Upload, Type, Palette, Globe, Briefcase } from 'lucide-react';
@@ -12,10 +13,13 @@ const BrandStep: React.FC<BrandStepProps> = ({ data, updateData }) => {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // In a real app, we would upload to S3/Cloudinary/GHL Media here.
-      // For now, we create a local object URL for preview.
-      const url = URL.createObjectURL(file);
-      updateData('logoUrl', url);
+      // Convert to Base64 for server upload
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        // reader.result contains the Base64 string (data:image/png;base64,...)
+        updateData('logoUrl', reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 

@@ -104,8 +104,28 @@ const App: React.FC = () => {
     };
 
     try {
-      // Run the automation sequence (Simulated for now, replace with real API call)
-      await runAutomationSimulation(finalData, updateStepStatus);
+      // 1. Run the Visual Simulation (UX)
+      // We run this to show the user progress while the backend works
+      const simulationPromise = runAutomationSimulation(finalData, updateStepStatus);
+
+      // 2. Run the REAL Backend Process
+      // We assume user data is mock for now, but in real app this comes from auth/form
+      const userData = {
+        email: "demo.user@example.com", 
+        firstName: "Demo",
+        lastName: "User",
+        companyName: finalData.brand.companyName || "New Agency Client",
+        phone: "+15550000000"
+      };
+
+      const backendPromise = fetch('http://localhost:3001/api/onboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaignData: finalData, userData })
+      });
+
+      // Wait for both visuals and reality to finish
+      await Promise.all([simulationPromise, backendPromise]);
       
       // Success handling
       setTimeout(() => {
@@ -118,14 +138,13 @@ const App: React.FC = () => {
       console.error("Automation failed", error);
       setIsSubmitting(false);
       setShowOverlay(false);
-      alert("An error occurred during setup. Please contact support.");
+      alert("An error occurred during setup. Check backend console.");
     }
   };
 
   const handleDashboardRedirect = () => {
-    // THIS IS WHERE YOU PROGRAM THE REDIRECT
-    // Example: window.location.href = "https://app.gohighlevel.com/login";
-    alert("Redirecting to your AdSpot 2.0 Dashboard...");
+    // Redirect to the production dashboard URL
+    window.location.href = "https://app.adspot.co";
   };
 
   return (

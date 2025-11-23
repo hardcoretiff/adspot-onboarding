@@ -66,24 +66,23 @@ export const runAutomationSimulation = async (
 
 /**
  * ==================================================================
- * BACKEND IMPLEMENTATION REFERENCE (Node.js)
+ * 🔐 FINAL STEP: GENERATE ACCESS TOKEN
  * ==================================================================
  * 
- * COPY THIS LOGIC TO YOUR BACKEND SERVER (e.g., Express/Node.js).
- * This code cannot run in the browser due to CORS and Security.
+ * You have the Client ID, Client Secret, and Auth Code.
  * 
- * REQUIRED API SCOPES (Private Integration):
- * -----------------------------------------------------------
- * | CODE SCOPE ID      | UI CHECKBOX NAME (In GHL Settings) |
- * |--------------------|------------------------------------|
- * | locations.write    | Locations (Read-Write)             |
- * | snapshots.readonly | Snapshots (Read-Only)              |
- * | contacts.write     | Contacts (Read-Write) [MISSING!]   |
- * | medias.write       | Media Library (Read-Write) [MISSING!]|
- * | objects.write      | Custom Objects (Read-Write) [MISSING!]|
- * -----------------------------------------------------------
- * NOTE: You MUST check the boxes for Contacts, Media, and Custom Objects
- * or the API will fail to save user data.
+ * --- WINDOWS POWERSHELL COMMAND (Use this one!) ---
+ * curl.exe -X POST "https://services.leadconnectorhq.com/oauth/token" -H "Content-Type: application/x-www-form-urlencoded" -d "client_id=69217749b497429cefe810f7-mib56whj" -d "client_secret=fe647298-c78a-468f-bc06-c0495d363b55" -d "grant_type=authorization_code" -d "code=PASTE_NEW_CODE_HERE"
+ * 
+ * --- MAC / LINUX COMMAND ---
+ * curl -X POST https://services.leadconnectorhq.com/oauth/token \
+ *   -H "Content-Type: application/x-www-form-urlencoded" \
+ *   -d "client_id=69217749b497429cefe810f7-mib56whj" \
+ *   -d "client_secret=fe647298-c78a-468f-bc06-c0495d363b55" \
+ *   -d "grant_type=authorization_code" \
+ *   -d "code=PASTE_NEW_CODE_HERE"
+ * 
+ * Then paste the "access_token" into your .env file.
  */
 
 /*
@@ -110,17 +109,30 @@ interface UserData {
 class GHLService {
   private baseUrl = 'https://services.leadconnectorhq.com';
   
-  // Headers for V2 API
+  // OAUTH HEADER
   private getHeaders() {
-    return {
-      'Authorization': `Bearer ${GHL_CONFIG.privateToken}`,
-      'Version': '2021-07-28',
-      'Content-Type': 'application/json'
-    };
+    // 1. Prefer OAuth Token if available (Marketplace App)
+    if (GHL_CONFIG.accessToken) {
+      return {
+        'Authorization': `Bearer ${GHL_CONFIG.accessToken}`,
+        'Version': '2021-07-28',
+        'Content-Type': 'application/json'
+      };
+    }
+    
+    // 2. Fallback to Legacy API Key if available (God Mode)
+    if (GHL_CONFIG.apiKey) {
+      return {
+        'Authorization': `Bearer ${GHL_CONFIG.apiKey}`,
+        'Content-Type': 'application/json'
+      };
+    }
+
+    console.error("❌ CRITICAL: No Auth Token found in .env");
+    throw new Error("Authentication Failed: Missing GHL_ACCESS_TOKEN or GHL_API_KEY");
   }
 
   // STEP 1: Create the Sub-Account
-  // Uses the Snapshot ID to create a pre-configured workspace.
   async createSubAccount(userData: UserData, tier: 'mini' | 'scale' | 'max'): Promise<string> {
     try {
       console.log(`Creating Subaccount for ${userData.email}...`);
@@ -167,7 +179,6 @@ class GHLService {
   }
 
   // STEP 2: Upload Logo to the NEW Sub-Account
-  // Note: We must pass the locationId so the file goes to the correct library.
   async uploadLogo(locationId: string, fileBuffer: Buffer, fileName: string): Promise<string> {
     try {
       console.log(`Uploading logo to location ${locationId}...`);
@@ -178,10 +189,10 @@ class GHLService {
       form.append('locationId', locationId); // Crucial for V2 API
 
       const headers = {
-        'Authorization': `Bearer ${GHL_CONFIG.privateToken}`,
-        'Version': '2021-07-28',
+        ...this.getHeaders(),
         ...form.getHeaders()
       };
+      delete headers['Content-Type']; // Let form-data set the multipart boundary
 
       const response = await fetch(`${this.baseUrl}/medias/upload-file`, {
         method: 'POST',
@@ -263,7 +274,7 @@ class GHLService {
           destination_url: campaign.destinationUrl,
           
           // Brand
-          brand_logo_url: logoUrl, // Ensure you create this field in GHL!
+          brand_logo_url: logoUrl, // Valid because we created this field
           brand_voice: campaign.brand.brandVoice,
           primary_color: campaign.brand.primaryColor,
           
@@ -271,7 +282,7 @@ class GHLService {
           retargeting_pixel_id: campaign.retargetingPixelId,
           heatmap_id: campaign.heatmapId,
           
-          // Stripe Price ID (Keeping this here for reference)
+          // Stripe Price ID
           stripe_price_id: campaign.stripePriceId
         },
         associations: {
